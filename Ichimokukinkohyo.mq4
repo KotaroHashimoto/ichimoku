@@ -25,8 +25,8 @@ double sl;
 
 void getAverageCandle(double& low, double& high) {
 
-  low = (iOpen(NULL, PERIOD_M5, 1) + iClose(NULL, PERIOD_M5, 1)) / 2.0;
-  high = (iLow(NULL, PERIOD_M5, 0) + iHigh(NULL, PERIOD_M5, 0) + iOpen(NULL, PERIOD_M5, 0) + iClose(NULL, PERIOD_M5, 0)) / 4.0;
+  low = (iOpen(NULL, PERIOD_CURRENT, 1) + iClose(NULL, PERIOD_CURRENT, 1)) / 2.0;
+  high = (iLow(NULL, PERIOD_CURRENT, 0) + iHigh(NULL, PERIOD_CURRENT, 0) + iOpen(NULL, PERIOD_CURRENT, 0) + iClose(NULL, PERIOD_CURRENT, 0)) / 4.0;
   
   if(high < low) {
     double b = low;
@@ -37,17 +37,17 @@ void getAverageCandle(double& low, double& high) {
 
 void getMAs(double& yellow, double& blue, double& white, double& gray) {
 
-  yellow = iMA(NULL, PERIOD_M5, 25, 0, MODE_SMA, PRICE_WEIGHTED, 0);
-  blue = iMA(NULL, PERIOD_M5, 75, 0, MODE_SMA, PRICE_WEIGHTED, 0);
-  white = iMA(NULL, PERIOD_M5, 100, 0, MODE_SMA, PRICE_WEIGHTED, 0);
-  gray = iMA(NULL, PERIOD_M5, 200, 0, MODE_SMA, PRICE_WEIGHTED, 0);
+  yellow = iMA(NULL, PERIOD_CURRENT, 25, 0, MODE_SMA, PRICE_WEIGHTED, 0);
+  blue = iMA(NULL, PERIOD_CURRENT, 75, 0, MODE_SMA, PRICE_WEIGHTED, 0);
+  white = iMA(NULL, PERIOD_CURRENT, 100, 0, MODE_SMA, PRICE_WEIGHTED, 0);
+  gray = iMA(NULL, PERIOD_CURRENT, 200, 0, MODE_SMA, PRICE_WEIGHTED, 0);
 }
 
 bool upTrendBuy(double yellow, double blue, double white, double gray, double low, double high) {
 
   if(gray < white && white < blue && blue < yellow) {
     if((low < gray && gray < high) || (low < white && white < high) || (low < blue && blue < high) || (low < yellow && yellow < high)) {
-      double i = iCustom(NULL, PERIOD_M5, "HMD", 0, 0);
+      double i = iCustom(NULL, PERIOD_CURRENT, "HMD", 0, 0);
       if(0 < i && i < 1000) {
         return True;
       }
@@ -61,7 +61,7 @@ bool downTrendSell(double yellow, double blue, double white, double gray, double
 
   if(gray > white && white > blue && blue > yellow) {
     if((low < gray && gray < high) || (low < white && white < high) || (low < blue && blue < high) || (low < yellow && yellow < high)) {
-      double i = iCustom(NULL, PERIOD_M5, "HMD", 1, 0);
+      double i = iCustom(NULL, PERIOD_CURRENT, "HMD", 1, 0);
       if(0 < i && i < 1000) {
         return True;
       }
@@ -72,7 +72,7 @@ bool downTrendSell(double yellow, double blue, double white, double gray, double
 }
 
 
-void takeProfit() {
+void takeProfit(double yellow, double blue, double white, double gray, double low, double high) {
 
   for(int i = 0; i < OrdersTotal(); i++) {
     if(OrderSelect(i, SELECT_BY_POS)) {
@@ -81,10 +81,10 @@ void takeProfit() {
 
         if(direction == OP_BUY) {
         
-          double ic = iCustom(NULL, PERIOD_M5, "HMD", 1, 0);
-        
-          if((iOpen(NULL, PERIOD_M5, 2) > iClose(NULL, PERIOD_M5, 2) && iOpen(NULL, PERIOD_M5, 1) > iClose(NULL, PERIOD_M5, 1))
-          || (0 < ic && ic < 1000)) {
+          double ic = iCustom(NULL, PERIOD_CURRENT, "HMD", 1, 0);
+          bool up = (gray < white && white < blue && blue < yellow);
+          
+          if((up && (0 < ic && ic < 1000)) || !up) {
             bool closed = OrderClose(OrderTicket(), OrderLots(), Bid, 0);
             if(closed) {
               i = -1;
@@ -98,10 +98,10 @@ void takeProfit() {
         }
         else if(direction == OP_SELL) {
         
-          double ic = iCustom(NULL, PERIOD_M5, "HMD", 0, 0);
-        
-          if((iOpen(NULL, PERIOD_M5, 2) < iClose(NULL, PERIOD_M5, 2) && iOpen(NULL, PERIOD_M5, 1) < iClose(NULL, PERIOD_M5, 1))
-          || (0 < ic && ic < 1000)) {
+          double ic = iCustom(NULL, PERIOD_CURRENT, "HMD", 0, 0);        
+          bool down = (gray > white && white > blue && blue > yellow);
+          
+          if((down && (0 < ic && ic < 1000)) || !down) {
             bool closed = OrderClose(OrderTicket(), OrderLots(), Ask, 0);
             if(closed) {
               i = -1;
@@ -155,16 +155,18 @@ void OnTick()
   if(OrdersTotal() == 0) {
   
     if(upTrendBuy(yellow, blue, white, gray, low, high)) {
+      Alert("Buy " + Symbol() + " at", Ask);    
       int ticket = OrderSend(thisSymbol, OP_BUY, Entry_Lot, NormalizeDouble(Ask, Digits), 3, NormalizeDouble(gray, Digits), 0, NULL, Magic_Number);
       sl = Ask - gray;
     }
     else if(downTrendSell(yellow, blue, white, gray, low, high)) {
+      Alert("Sell " + Symbol() + " at", Bid);
       int ticket = OrderSend(thisSymbol, OP_SELL, Entry_Lot, NormalizeDouble(Bid, Digits), 3, NormalizeDouble(gray, Digits), 0, NULL, Magic_Number);
       sl = gray - Bid;
     }
   }
   else {
-    takeProfit();
+    takeProfit(yellow, blue, white, gray, low, high);
   }
 }
 
