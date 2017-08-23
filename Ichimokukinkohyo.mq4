@@ -13,8 +13,10 @@
 input int Magic_Number = 1;
 
 input double Entry_Lot = 0.1;
+input int Close_TimeOut = 10;
 
 string thisSymbol;
+datetime lastModified;
 
 double minLot;
 double maxLot;
@@ -84,16 +86,19 @@ void takeProfit(double yellow, double blue, double white, double gray, double lo
           double ic = iCustom(NULL, PERIOD_CURRENT, "HMD", 1, 0);
           bool up = (gray < white && white < blue && blue < yellow);
           
-          if((up && (0 < ic && ic < 1000)) || !up) {
+          if((up && (0 < ic && ic < 1000)) || !up || (0 < lastModified && Close_TimeOut * 60 < TimeLocal() - lastModified)) {
             bool closed = OrderClose(OrderTicket(), OrderLots(), Bid, 0);
             if(closed) {
               i = -1;
+              lastModified = 0;
               continue;
             }
           }
         
           if(OrderStopLoss() < Ask - sl) {
-            bool mod = OrderModify(OrderTicket(), OrderOpenPrice(), Ask - sl, 0, 0);
+            if(OrderModify(OrderTicket(), OrderOpenPrice(), Ask - sl, 0, 0)) {
+              lastModified = TimeLocal();
+            }
           }
         }
         else if(direction == OP_SELL) {
@@ -101,16 +106,19 @@ void takeProfit(double yellow, double blue, double white, double gray, double lo
           double ic = iCustom(NULL, PERIOD_CURRENT, "HMD", 0, 0);        
           bool down = (gray > white && white > blue && blue > yellow);
           
-          if((down && (0 < ic && ic < 1000)) || !down) {
+          if((down && (0 < ic && ic < 1000)) || !down || (0 < lastModified && Close_TimeOut * 60 < TimeLocal() - lastModified)) {
             bool closed = OrderClose(OrderTicket(), OrderLots(), Ask, 0);
             if(closed) {
               i = -1;
+              lastModified = 0;
               continue;
             }
           }
         
           if(Bid + sl < OrderStopLoss()) {
-            bool mod = OrderModify(OrderTicket(), OrderOpenPrice(), Bid + sl, 0, 0);
+            if(OrderModify(OrderTicket(), OrderOpenPrice(), Bid + sl, 0, 0)) {
+              lastModified = TimeLocal();
+            }
           }
         }
       }
@@ -129,7 +137,8 @@ int OnInit()
   maxLot = MarketInfo(Symbol(), MODE_MAXLOT);
   lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
   lotSize = MarketInfo(Symbol(), MODE_LOTSIZE);
-  
+  lastModified = 0;
+
   //---
   return(INIT_SUCCEEDED);
 }
@@ -158,11 +167,13 @@ void OnTick()
       Alert("Buy " + Symbol() + " at", Ask);    
       int ticket = OrderSend(thisSymbol, OP_BUY, Entry_Lot, NormalizeDouble(Ask, Digits), 3, NormalizeDouble(gray, Digits), 0, NULL, Magic_Number);
       sl = Ask - gray;
+      lastModified = 0;
     }
     else if(downTrendSell(yellow, blue, white, gray, low, high)) {
       Alert("Sell " + Symbol() + " at", Bid);
       int ticket = OrderSend(thisSymbol, OP_SELL, Entry_Lot, NormalizeDouble(Bid, Digits), 3, NormalizeDouble(gray, Digits), 0, NULL, Magic_Number);
       sl = gray - Bid;
+      lastModified = 0;
     }
   }
   else {
