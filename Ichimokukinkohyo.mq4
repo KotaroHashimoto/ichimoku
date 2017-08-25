@@ -13,7 +13,8 @@
 input int Magic_Number = 1;
 
 input double Entry_Lot = 0.1;
-input int Close_TimeOut = 10;
+input int Close_TimeOut_Sec = 10;
+input double Stop_Loss = 0.1;
 
 string thisSymbol;
 datetime lastModified;
@@ -86,7 +87,7 @@ void takeProfit(double yellow, double blue, double white, double gray, double lo
           double ic = iCustom(NULL, PERIOD_CURRENT, "HMD", 1, 0);
           bool up = (gray < white && white < blue && blue < yellow);
           
-          if((up && (0 < ic && ic < 1000)) || !up || (0 < lastModified && Close_TimeOut * 60 < TimeLocal() - lastModified)) {
+          if((up && (0 < ic && ic < 1000)) || !up || (0 < lastModified && Close_TimeOut_Sec < TimeLocal() - lastModified)) {
             bool closed = OrderClose(OrderTicket(), OrderLots(), Bid, 0);
             if(closed) {
               i = -1;
@@ -106,7 +107,7 @@ void takeProfit(double yellow, double blue, double white, double gray, double lo
           double ic = iCustom(NULL, PERIOD_CURRENT, "HMD", 0, 0);        
           bool down = (gray > white && white > blue && blue > yellow);
           
-          if((down && (0 < ic && ic < 1000)) || !down || (0 < lastModified && Close_TimeOut * 60 < TimeLocal() - lastModified)) {
+          if((down && (0 < ic && ic < 1000)) || !down || (0 < lastModified && Close_TimeOut_Sec < TimeLocal() - lastModified)) {
             bool closed = OrderClose(OrderTicket(), OrderLots(), Ask, 0);
             if(closed) {
               i = -1;
@@ -164,15 +165,17 @@ void OnTick()
   if(OrdersTotal() == 0) {
   
     if(upTrendBuy(yellow, blue, white, gray, low, high)) {
-      Alert("Buy " + Symbol() + " at", Ask);    
-      int ticket = OrderSend(thisSymbol, OP_BUY, Entry_Lot, NormalizeDouble(Ask, Digits), 3, NormalizeDouble(gray, Digits), 0, NULL, Magic_Number);
-      sl = Ask - gray;
+      Alert("Buy " + Symbol() + " at", Ask);
+      double slp = (Stop_Loss <= 0.0) ? gray : Ask - Stop_Loss;
+      int ticket = OrderSend(thisSymbol, OP_BUY, Entry_Lot, NormalizeDouble(Ask, Digits), 3, NormalizeDouble(slp, Digits), 0, NULL, Magic_Number);
+      sl = Ask - slp;
       lastModified = 0;
     }
     else if(downTrendSell(yellow, blue, white, gray, low, high)) {
       Alert("Sell " + Symbol() + " at", Bid);
-      int ticket = OrderSend(thisSymbol, OP_SELL, Entry_Lot, NormalizeDouble(Bid, Digits), 3, NormalizeDouble(gray, Digits), 0, NULL, Magic_Number);
-      sl = gray - Bid;
+      double slp = (Stop_Loss <= 0.0) ? gray : Bid + Stop_Loss;
+      int ticket = OrderSend(thisSymbol, OP_SELL, Entry_Lot, NormalizeDouble(Bid, Digits), 3, NormalizeDouble(slp, Digits), 0, NULL, Magic_Number);
+      sl = slp - Bid;
       lastModified = 0;
     }
   }
